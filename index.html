@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-select=no">
+  <title>레전드 오브 크로니클: 용사의 여정 (4차 최종전직 리마스터)</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <header>
+    <h1>⚔️ 레전드 오브 크로니클: 용사의 여정 (4차 최종전직 리마스터) 🛡️</h1>
+    <p class="subtitle">자유 탐험 · 10/20/50/100Lv 4단 전직 · 전직관 분산 배치 · 설정 초기화 기능 탑재</p>
+  </header>
+
+  <div id="game-container">
+    <div id="error-banner"></div>
+    <div id="toast-msg">알림 메시지</div>
+    <div class="flash-overlay" id="flash-overlay"></div>
+    <canvas id="gameCanvas" width="800" height="600"></canvas>
+
+    <!-- Title Screen Overlay -->
+    <div id="title-screen">
+      <div class="title-logo">⚔️ 레전드 오브 크로니클 🛡️</div>
+      <div class="title-sub">용사의 여정: 어둠의 패왕 흑룡과 7대 대륙의 수호자</div>
+      <div class="title-features">
+        <span class="title-tag">🔓 모든 맵 무제한 자유 탐험</span>
+        <span class="title-tag">🎖️ 10Lv / 20Lv / 50Lv / 100Lv 4단 전직</span>
+        <span class="title-tag">⚔️ 전직 시험관 보스전 & 많은 비용</span>
+        <span class="title-tag">⚙️ 설정에서 스탯/전직/캐릭 초기화</span>
+        <span class="title-tag">💾 로컬 브라우저 세이브/로드</span>
+      </div>
+      <div class="title-buttons">
+        <button class="start-btn" onclick="Game.startNewGame()">새 모험 시작</button>
+        <button class="load-btn" onclick="Game.loadFromTitle()">이어하기 (로드)</button>
+      </div>
+      <div style="margin-top: 20px; font-size: 0.75rem; color: #94a3b8;">
+        방향키/WASD 이동 · Space/Enter 상호작용 · ESC 메뉴 닫기 · 빠른 레벨업 지원
+      </div>
+    </div>
+
+    <!-- Top Status Bar in Exploration Mode -->
+    <div id="top-bar">
+      <div class="status-pill" id="player-pill">
+        <span style="color:#f1c40f;">[<span id="pill-job">모험가</span>]</span>
+        <span>👤 Lv.<span id="pill-level">1</span></span>
+        <span style="color:#2ecc71;">HP: <span id="pill-hp">120</span>/<span id="pill-maxhp">120</span></span>
+        <span style="color:#3498db;">MP: <span id="pill-mp">60</span>/<span id="pill-maxmp">60</span></span>
+        <span style="color:#e67e22;">EXP: <span id="pill-exp-pct">0%</span></span>
+        <span style="color:#f1c40f;">💰 <span id="pill-gold">150</span>G</span>
+        <span id="pill-sp-tag" style="display:none; color:#e74c3c; font-weight:bold;">✨SP:+<span id="pill-sp">0</span></span>
+      </div>
+      <div class="menu-buttons">
+        <button class="game-btn" onclick="Game.openInventory()">🎒 가방</button>
+        <button class="game-btn" onclick="Game.openQuestLog()">📜 퀘스트</button>
+        <button class="game-btn" onclick="Game.openStatus()">📊 능력치</button>
+        <button class="game-btn" onclick="Game.openSettings()">⚙️ 설정</button>
+        <button class="game-btn btn-admin" id="admin-menu-btn" style="display:none; border-color:#e74c3c; color:#ff7675; font-weight:bold; background:linear-gradient(180deg, #4a1525, #220810);" onclick="Admin.openConsole()">⚡ 어드민</button>
+        <button class="game-btn btn-gold" onclick="Game.manualSave()">💾 저장</button>
+        <button class="game-btn" id="audio-toggle-btn" onclick="Sound.toggleBgm()">🎵 BGM: 켬</button>
+      </div>
+    </div>
+
+    <!-- Dialogue Box Overlay -->
+    <div id="dialogue-box">
+      <div id="dialogue-speaker">장로 에드워드</div>
+      <div id="dialogue-text">용사여, 깨어났는가! 남쪽 숲의 마물들을 조사해주게.</div>
+      <div id="dialogue-hint">[Space] 또는 [Enter] 키로 다음 대화</div>
+    </div>
+
+    <!-- Battle Screen UI Overlay -->
+    <div id="battle-ui">
+      <div class="battle-hud-top">
+        <!-- Player Battle Card -->
+        <div class="combatant-card">
+          <div class="combatant-name">
+            <span>
+              <strong id="battle-player-name">용사 아르스</strong>
+              <small style="color:#3498db;" id="battle-player-job">(모험가)</small>
+            </span>
+            <span class="badge badge-gold" id="battle-player-level">Lv.1</span>
+          </div>
+          <div class="bar-container">
+            <div class="bar-label"><span>HP</span><span id="battle-player-hp-text">120/120</span></div>
+            <div class="bar-bg"><div class="bar-fill hp-fill" id="battle-player-hp-bar"></div></div>
+          </div>
+          <div class="bar-container">
+            <div class="bar-label"><span>MP</span><span id="battle-player-mp-text">60/60</span></div>
+            <div class="bar-bg"><div class="bar-fill mp-fill" id="battle-player-mp-bar"></div></div>
+          </div>
+        </div>
+
+        <!-- Enemy Battle Card -->
+        <div class="combatant-card">
+          <div class="combatant-name">
+            <span id="battle-enemy-name" style="color: #e74c3c;">숲 슬라임</span>
+            <span class="badge" id="battle-enemy-level">Lv.1</span>
+          </div>
+          <div class="bar-container">
+            <div class="bar-label"><span>HP</span><span id="battle-enemy-hp-text">45/45</span></div>
+            <div class="bar-bg"><div class="bar-fill hp-fill" id="battle-enemy-hp-bar"></div></div>
+          </div>
+          <div class="bar-label" id="battle-enemy-info" style="color:#a4b0be; font-size:0.7rem;">
+            <span>위험도: 보통</span>
+            <span id="battle-enemy-type">야생 몬스터</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="battle-hud-bottom">
+        <div class="battle-log" id="battle-log">
+          <!-- Combat messages will appear here -->
+        </div>
+
+        <div class="battle-actions">
+          <!-- Main Action Buttons -->
+          <div class="battle-button-row" id="battle-main-actions">
+            <button class="game-btn btn-gold" onclick="Battle.actionAttack()">⚔️ 공격</button>
+            <button class="game-btn" onclick="Battle.showSubMenu('skills')">✨ 스킬</button>
+            <button class="game-btn" onclick="Battle.showSubMenu('items')">🎒 아이템</button>
+            <button class="game-btn" onclick="Battle.actionDefend()">🛡️ 방어</button>
+          </div>
+
+          <!-- Skills Sub-Menu -->
+          <div class="battle-sub-menu" id="battle-skills-menu"></div>
+
+          <!-- Items Sub-Menu -->
+          <div class="battle-sub-menu" id="battle-items-menu"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Inventory Overlay -->
+    <div class="overlay" id="inventory-overlay">
+      <div class="overlay-header">
+        <div class="overlay-title">🎒 가방 및 장비</div>
+        <button class="close-btn" onclick="Game.closeOverlays()">닫기 (ESC)</button>
+      </div>
+      <div style="margin-bottom: 8px; font-size: 0.82rem; background:rgba(0,0,0,0.3); padding:8px; border-radius:6px; display:flex; flex-wrap:wrap; gap:10px; align-items:center;">
+        <span>골드: <strong style="color: #f1c40f;" id="inv-gold-display">0</strong> G</span>
+        <span>⚔️ 무기: <span style="color:#3498db; font-weight:bold;" id="inv-equip-weapon">나무 검</span></span>
+        <span>🛡️ 흉갑: <span style="color:#2ecc71; font-weight:bold;" id="inv-equip-armor">수련자의 옷</span></span>
+        <span>👖 각반: <span style="color:#e67e22; font-weight:bold;" id="inv-equip-leggings">수련자의 바지</span></span>
+        <span>🪽 날개: <span style="color:#9b59b6; font-weight:bold;" id="inv-equip-wings">없음</span></span>
+      </div>
+      <div class="tab-content" id="inventory-list"></div>
+    </div>
+
+    <!-- Shop Overlay -->
+    <div class="overlay" id="shop-overlay">
+      <div class="overlay-header">
+        <div class="overlay-title">🏪 상점 (방랑 상인 로렌스)</div>
+        <button class="close-btn" onclick="Game.closeOverlays()">닫기 (ESC)</button>
+      </div>
+      <div style="margin-bottom: 8px; font-size: 0.85rem; display:flex; justify-content:space-between;">
+        <span>보유 골드: <strong style="color: #f1c40f;" id="shop-gold-display">0</strong> G</span>
+        <span style="color:#a4b0be; font-size:0.75rem;">장비는 구매 시 바로 능력치가 가방에 보관됩니다.</span>
+      </div>
+      <div class="tab-content" id="shop-list"></div>
+    </div>
+
+    <!-- Quest Log Overlay -->
+    <div class="overlay" id="quest-overlay">
+      <div class="overlay-header">
+        <div class="overlay-title">📜 퀘스트 저널</div>
+        <button class="close-btn" onclick="Game.closeOverlays()">닫기 (ESC)</button>
+      </div>
+      <div id="quest-content" style="line-height: 1.6; font-size: 0.9rem; overflow-y:auto; flex:1;"></div>
+    </div>
+
+    <!-- Status Stats Overlay (With Stat Point Allocation) -->
+    <div class="overlay" id="status-overlay">
+      <div class="overlay-header">
+        <div class="overlay-title">📊 용사 상세 능력치 및 스탯 분배</div>
+        <button class="close-btn" onclick="Game.closeOverlays()">닫기 (ESC)</button>
+      </div>
+      <div id="status-content" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; font-size: 0.88rem; overflow-y:auto; flex:1;">
+      </div>
+    </div>
+
+    <!-- Individual Job Master Overlay -->
+    <div class="overlay" id="job-dialog-overlay" style="align-items: center; justify-content: center;">
+      <div style="background:#161d30; border:2px solid var(--accent-gold); border-radius:12px; padding:20px; max-width:480px; width:100%; box-shadow:0 8px 30px rgba(0,0,0,0.8);">
+        <h3 id="job-dialog-title" style="color:var(--accent-gold); margin-bottom:8px; font-size:1.25rem;">전직관</h3>
+        <p id="job-dialog-desc" style="font-size:0.88rem; line-height:1.5; color:#cbd5e1; margin-bottom:14px;"></p>
+        <div id="job-dialog-req" style="background:#0e1322; border:1px solid #2d3752; padding:10px; border-radius:6px; font-size:0.82rem; margin-bottom:16px;"></div>
+        <div style="display:flex; justify-content:flex-end; gap:8px;">
+          <button class="game-btn" onclick="Game.closeOverlays()">닫기</button>
+          <button class="game-btn btn-gold" id="job-advance-btn" onclick="Game.executeJobAdvance()">전직 도전</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Settings Overlay (스탯/전직/캐릭터 초기화) -->
+    <div class="overlay" id="settings-overlay">
+      <div class="overlay-header">
+        <div class="overlay-title">⚙️ 시스템 설정 및 초기화</div>
+        <button class="close-btn" onclick="Game.closeOverlays()">닫기 (ESC)</button>
+      </div>
+      <div style="margin-bottom:12px; font-size:0.85rem; color:#a4b0be;">
+        언제든 자유롭게 스탯, 전직, 캐릭터 전체 데이터를 초기화할 수 있습니다.
+      </div>
+      <div class="tab-content" style="grid-template-columns: 1fr;">
+        <div class="setting-card">
+          <div>
+            <strong style="color:#f1c40f; font-size:0.95rem;">📊 스탯 초기화</strong>
+            <p style="font-size:0.78rem; color:#cbd5e1; margin-top:4px;">
+              지금까지 투자한 근력, 마력, 체력, 민첩 스탯을 모두 회수하여 미분배 스탯 포인트로 100% 반환합니다.
+            </p>
+          </div>
+          <button class="game-btn btn-gold" style="align-self:flex-start; padding:6px 16px;" onclick="Game.resetStatsFromSettings()">스탯 포인트 전액 반환</button>
+        </div>
+
+        <div class="setting-card">
+          <div>
+            <strong style="color:#3498db; font-size:0.95rem;">🎖️ 전직 초기화</strong>
+            <p style="font-size:0.78rem; color:#cbd5e1; margin-top:4px;">
+              현재 직업을 [모험가]로 되돌립니다. 레벨과 스탯은 유지되며, 원하는 다른 직업의 전직관을 찾아가 다시 전직할 수 있습니다.
+            </p>
+          </div>
+          <button class="game-btn" style="align-self:flex-start; padding:6px 16px; border-color:#3498db; color:#3498db;" onclick="Game.resetJobFromSettings()">전직 초기화 (모험가로 복귀)</button>
+        </div>
+
+        <div class="setting-card">
+          <div>
+            <strong style="color:#e74c3c; font-size:0.95rem;">⚠️ 캐릭터 완전 초기화</strong>
+            <p style="font-size:0.78rem; color:#cbd5e1; margin-top:4px;">
+              모든 레벨, 스탯, 골드, 장비, 퀘스트를 처음 상태(Lv.1 모험가)로 완전히 되돌립니다.
+            </p>
+          </div>
+          <button class="game-btn btn-danger" style="align-self:flex-start; padding:6px 16px;" onclick="Game.resetCharacterFromSettings()">캐릭터 전체 초기화</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Admin Overlay (어드민 절대 권능 콘솔) -->
+    <div class="overlay" id="admin-overlay">
+      <div class="overlay-header">
+        <div class="overlay-title" style="color: #ff4757; text-shadow: 0 0 10px rgba(255, 71, 87, 0.6);">⚡ 어드민 절대 권능 콘솔 (ADMIN PANEL)</div>
+        <button class="close-btn" onclick="Game.closeOverlays()">닫기 (ESC)</button>
+      </div>
+      <div style="margin-bottom:10px; font-size:0.83rem; color:#a4b0be;">
+        신(God)이 된 당신은 세상의 모든 것을 마음대로 조작할 수 있습니다. 몬스터의 능력치를 실시간으로 바꾸거나 치트를 발동하세요.
+      </div>
+      <div class="admin-grid">
+        <!-- Monster Editor Card -->
+        <div class="admin-card">
+          <strong style="color:#ff6b81; font-size:0.95rem;">👾 몬스터 실시간 커스텀 편집기</strong>
+          <div style="font-size:0.75rem; color:#cbd5e1;">수정할 몬스터를 선택하고 원하는 능력치를 입력하세요.</div>
+          <div>
+            <label style="font-size:0.75rem; color:#a4b0be;">대상 몬스터:</label>
+            <select id="admin-monster-select" class="admin-input" onchange="Admin.loadMonsterToForm()">
+              <!-- populated dynamically -->
+            </select>
+          </div>
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:6px;">
+            <div>
+              <label style="font-size:0.75rem; color:#a4b0be;">체력 (HP):</label>
+              <input type="number" id="admin-monster-hp" class="admin-input" value="90">
+            </div>
+            <div>
+              <label style="font-size:0.75rem; color:#a4b0be;">공격력 (ATK):</label>
+              <input type="number" id="admin-monster-atk" class="admin-input" value="20">
+            </div>
+            <div>
+              <label style="font-size:0.75rem; color:#a4b0be;">방어력 (DEF):</label>
+              <input type="number" id="admin-monster-def" class="admin-input" value="2">
+            </div>
+            <div>
+              <label style="font-size:0.75rem; color:#a4b0be;">드랍 골드 (G):</label>
+              <input type="number" id="admin-monster-gold" class="admin-input" value="30">
+            </div>
+          </div>
+          <div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:4px;">
+            <button class="admin-btn admin-btn-gold" style="flex:1;" onclick="Admin.setQuickHp(10000000)">🔥 체력 10,000,000 설정</button>
+            <button class="admin-btn" style="flex:1;" onclick="Admin.applyMonsterStats()">💾 능력치 적용</button>
+          </div>
+          <button class="admin-btn" style="background:linear-gradient(180deg, #8e44ad, #5b2c6f); border-color:#9b59b6; margin-top:4px;" onclick="Admin.testBattleSelectedMonster()">⚔️ 이 몬스터와 즉시 전투</button>
+        </div>
+
+        <!-- Cheats & Convenience Card -->
+        <div class="admin-card">
+          <strong style="color:#f1c40f; font-size:0.95rem;">👑 신의 권능 치트 & 편의 기능</strong>
+          <div style="display:flex; flex-direction:column; gap:6px;">
+            <div style="display:flex; gap:6px;">
+              <button class="admin-btn" id="admin-god-toggle-btn" style="flex:1;" onclick="Admin.toggleGodMode()">⚡ 신 모드: 켬 (무한 HP/ATK)</button>
+              <button class="admin-btn" id="admin-spawn-toggle-btn" style="flex:1;" onclick="Admin.toggleMonsterSpawn()">👾 마물 스폰: 끔 (평화)</button>
+            </div>
+            <div style="display:flex; gap:6px;">
+              <button class="admin-btn" style="flex:1; background:#27ae60; border-color:#2ecc71;" onclick="Admin.giveGold(1000000)">💰 +1,000,000 G</button>
+              <button class="admin-btn" style="flex:1; background:#2980b9; border-color:#3498db;" onclick="Admin.giveStatPoints(1000)">✨ +1,000 SP</button>
+            </div>
+            <button class="admin-btn admin-btn-gold" onclick="Admin.giveAllUltimateGear()">👑 전설/히든 장비 풀세트 지급 (크로노스, 골드세트, 흑룡날개)</button>
+            <div style="border-top:1px solid #334155; padding-top:6px; margin-top:4px;">
+              <label style="font-size:0.75rem; color:#a4b0be; margin-bottom:4px; display:block;">🗺️ 신의 텔레포트:</label>
+              <div style="display:grid; grid-template-columns: repeat(4, 1fr); gap:4px;">
+                <button class="game-btn" style="font-size:0.72rem; padding:4px;" onclick="Admin.teleport('town')">마을</button>
+                <button class="game-btn" style="font-size:0.72rem; padding:4px;" onclick="Admin.teleport('forest')">숲</button>
+                <button class="game-btn" style="font-size:0.72rem; padding:4px;" onclick="Admin.teleport('cave')">동굴</button>
+                <button class="game-btn" style="font-size:0.72rem; padding:4px;" onclick="Admin.teleport('swamp')">늪지</button>
+                <button class="game-btn" style="font-size:0.72rem; padding:4px;" onclick="Admin.teleport('snow')">설원</button>
+                <button class="game-btn" style="font-size:0.72rem; padding:4px;" onclick="Admin.teleport('volcano')">화산</button>
+                <button class="game-btn" style="font-size:0.72rem; padding:4px;" onclick="Admin.teleport('dungeon')">성채</button>
+                <button class="game-btn btn-gold" style="font-size:0.72rem; padding:4px;" onclick="Admin.teleport('olympus')">올림포스</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Victory / Defeat / Ending Modal -->
+    <div class="overlay" id="battle-result-overlay" style="align-items: center; justify-content: center; text-align: center;">
+      <h2 id="battle-result-title" style="font-size: 1.8rem; margin-bottom: 12px; color: var(--accent-gold);">전투 승리!</h2>
+      <p id="battle-result-desc" style="font-size: 1rem; margin-bottom: 20px; line-height: 1.6; max-width:85%;"></p>
+      <button class="game-btn btn-gold" style="padding: 10px 32px; font-size: 1.05rem;" onclick="Battle.endBattle()">확인</button>
+    </div>
+
+  </div>
+
+  <!-- Mobile On-screen Controls -->
+  <div id="mobile-controls">
+    <div class="dpad">
+      <div></div>
+      <button class="dpad-btn" onpointerdown="Input.virtualKey('ArrowUp', true)" onpointerup="Input.virtualKey('ArrowUp', false)">▲</button>
+      <div></div>
+      <button class="dpad-btn" onpointerdown="Input.virtualKey('ArrowLeft', true)" onpointerup="Input.virtualKey('ArrowLeft', false)">◀</button>
+      <div class="dpad-btn" style="opacity: 0.3;">●</div>
+      <button class="dpad-btn" onpointerdown="Input.virtualKey('ArrowRight', true)" onpointerup="Input.virtualKey('ArrowRight', false)">▶</button>
+      <div></div>
+      <button class="dpad-btn" onpointerdown="Input.virtualKey('ArrowDown', true)" onpointerup="Input.virtualKey('ArrowDown', false)">▼</button>
+      <div></div>
+    </div>
+    <div class="action-buttons">
+      <button class="action-circle-btn" onpointerdown="Input.virtualInteract()">
+        <span>A</span>
+        <small style="font-size:0.6rem;">상호작용</small>
+      </button>
+      <button class="action-circle-btn" style="background:#2980b9; border-color:#3498db;" onpointerdown="Game.openInventory()">
+        <span>🎒</span>
+        <small style="font-size:0.6rem;">가방</small>
+      </button>
+    </div>
+  </div>
+
+  <div class="instructions">
+    <p>🎮 <strong>조작법:</strong> 이동 [W,A,S,D] / [방향키] | 대화/행동 [Space] / [Enter] | 메뉴 닫기 [ESC]</p>
+    <p>💡 <strong>팁:</strong> 모든 맵은 제한 없이 탐험할 수 있습니다! 마을에는 검사와 마법사 전직관이, 다른 대륙에 나머지 전직관들이 위치합니다.</p>
+  </div>
+
+
+  <script src="js/sound.js"></script>
+  <script src="js/database.js"></script>
+  <script src="js/player.js"></script>
+  <script src="js/board.js"></script>
+  <script src="js/maps.js"></script>
+  <script src="js/render.js"></script>
+  <script src="js/battle.js"></script>
+  <script src="js/input.js"></script>
+  <script src="js/game.js"></script>
+  <script src="js/admin.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>
